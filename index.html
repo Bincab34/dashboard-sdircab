@@ -1013,7 +1013,7 @@ var SUPABASE_URL='https://ulnqzrvdtwoyogfwxrul.supabase.co';
 var SUPABASE_PUBLISHABLE_KEY='sb_publishable_E6wXc_O9MDyp20yoz0AOjQ_IAVk2EMo';
 
 var root=document.documentElement,A=function(i){return document.getElementById(i)};
-var ROLE=null,sb=null,busy=false,fails=0,lockUntil=0,lastCheck=0;/* ROLE hanya di closure ini, tidak bisa diubah dari konsol lewat variabel global */
+var ROLE=null,sb=null,busy=false,fails=0,lockUntil=0,lastCheck=0,syncing=false,cloudReady=false,applyingCloud=false,cloudTimer=null;/* ROLE hanya di closure ini, tidak bisa diubah dari konsol lewat variabel global */
 
 function cfgOk(){return /^https:\/\/\S{8,}$/.test(SUPABASE_URL)&&!/\[ISI/i.test(SUPABASE_URL)&&SUPABASE_PUBLISHABLE_KEY.length>20&&!/\[ISI/i.test(SUPABASE_PUBLISHABLE_KEY)}
 function view(v){A('auth').setAttribute('data-v',v)}
@@ -1023,10 +1023,36 @@ function setBusy(b,tx){busy=b;A('auBtn').disabled=b;A('auBtn').classList.toggle(
 function isNet(e){var m=String(e&&e.message||'');return !!e&&(e.name==='AuthRetryableFetchError'||e.status===0||e.status>=500||/fetch|network|load failed|timeout/i.test(m))}
 function lock(){root.classList.add('locked');document.body.classList.remove('role-admin','role-user');ROLE=null}
 function initials(s){var p=String(s||'').trim().split(/[\s@.]+/).filter(Boolean);return ((p[0]||'?')[0]+(p[1]?p[1][0]:'')).toUpperCase()}
+function collectLocalState(){var out={};try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(/^binkar/.test(k)&&k!=='binkar_mrow')out[k]=localStorage.getItem(k)}}catch(e){}return out}
+function applyCloudState(state){var local=collectLocalState(),changed=false;applyingCloud=true;try{
+ var keys=Object.keys(state||{}),lk=Object.keys(local);
+ if(!keys.length){applyingCloud=false;return false}
+ lk.forEach(function(k){if(!Object.prototype.hasOwnProperty.call(state,k)){_ri.call(localStorage,k);changed=true}});
+ keys.forEach(function(k){var v=String(state[k]);if(localStorage.getItem(k)!==v){_si.call(localStorage,k,v);changed=true}});
+ }catch(e){}finally{applyingCloud=false}return changed}
+function pushCloudState(){if(!sb||ROLE!=='admin'||!cloudReady||applyingCloud)return;clearTimeout(cloudTimer);cloudTimer=setTimeout(function(){
+ sb.auth.getUser().then(function(u){if(!u.data||!u.data.user)return;var state=collectLocalState(),content=JSON.stringify(state);
+ if(content.length>3500000){note('Sinkronisasi tertunda: data browser terlalu besar. File foto/dokumen perlu dipindahkan ke Supabase Storage.');return}
+ return sb.from('dashboard_app_state').upsert({title:'dashboard_state_v1',content:content,updated_by:u.data.user.id,updated_at:new Date().toISOString()},{onConflict:'title'}).then(function(r){if(r.error){note('Data lokal tersimpan, tetapi sinkronisasi cloud gagal. Periksa tabel dan policy Supabase.');console.error('Cloud sync failed:',r.error)}else{note('Sinkronisasi cloud berhasil. Data dashboard tersimpan di Supabase.')}})
+ }).catch(function(e){console.error('Cloud sync failed:',e);note('Sinkronisasi cloud gagal. Periksa koneksi internet.')})
+ },1000)}
+function initCloudState(){if(!sb||!ROLE||syncing)return;syncing=true;
+ sb.from('dashboard_app_state').select('title,content').eq('title','dashboard_state_v1').maybeSingle().then(function(r){
+ if(r.error){note('Login berhasil, tetapi sinkronisasi cloud belum aktif. Pastikan SQL tabel dashboard_app_state dan policy sudah dijalankan.');console.error('Cloud state read failed:',r.error);return}
+ var local=collectLocalState();
+ if(!r.data||!r.data.content||r.data.content==='{}'){
+   if(ROLE==='admin'){cloudReady=true;pushCloudState();}
+   else{note('Data cloud belum diinisialisasi oleh admin. Hubungi administrator.');}
+   return;
+ }
+ var state;try{state=JSON.parse(r.data.content)}catch(e){note('Data cloud tidak dapat dibaca. Data lokal tidak dihapus.');return}
+ var changed=applyCloudState(state);cloudReady=true;
+ if(changed){note('Data cloud dimuat. Memperbarui tampilan dashboard…');setTimeout(function(){location.reload()},250)}
+ }).catch(function(e){console.error('Cloud state read failed:',e);note('Tidak dapat membaca data cloud. Data lokal tidak dihapus.')}).finally(function(){syncing=false})}
 function enter(p,user){ROLE=p.role;var n=p.full_name||user.email||'Pengguna';
  A('unm').textContent=n;A('uav').textContent=initials(n);A('urole').textContent=p.role==='admin'?'Admin':'User';
  document.body.classList.remove('role-admin','role-user');document.body.classList.add('role-'+p.role);
- root.classList.remove('locked');err('');note('');A('auPass').value='';lastCheck=Date.now();window.scrollTo(0,0)}
+ root.classList.remove('locked');err('');note('');A('auPass').value='';lastCheck=Date.now();window.scrollTo(0,0);setTimeout(initCloudState,0)}
 
 /* Peran HANYA dibaca dari tabel profiles di database (dilindungi RLS), bukan dari input pengguna */
 function loadProfile(user){return sb.from('profiles').select('role,full_name,is_active').eq('id',user.id).maybeSingle().then(function(r){
@@ -1081,8 +1107,8 @@ var PERSIST_FN=['sv','ms','dnfs','bjsm','glsv','dsv','stgsv'];
 ADM_FN.forEach(function(n){var f=window[n];if(typeof f!=='function')return;window[n]=function(){if(!isAdmin()){refuse();return}return f.apply(this,arguments)}});
 PERSIST_FN.forEach(function(n){var f=window[n];if(typeof f!=='function')return;window[n]=function(){if(!isAdmin())return;return f.apply(this,arguments)}});
 var _si=Storage.prototype.setItem,_ri=Storage.prototype.removeItem;
-Storage.prototype.setItem=function(k){if(/^binkar/.test(String(k))&&k!=='binkar_mrow'&&!isAdmin())return;return _si.apply(this,arguments)};
-Storage.prototype.removeItem=function(k){if(/^binkar/.test(String(k))&&!isAdmin())return;return _ri.apply(this,arguments)};
+Storage.prototype.setItem=function(k){if(/^binkar/.test(String(k))&&k!=='binkar_mrow'&&!isAdmin())return;var r=_si.apply(this,arguments);if(/^binkar/.test(String(k))&&k!=='binkar_mrow')pushCloudState();return r};
+Storage.prototype.removeItem=function(k){if(/^binkar/.test(String(k))&&!isAdmin())return;var r=_ri.apply(this,arguments);if(/^binkar/.test(String(k)))pushCloudState();return r};
 var _sm=HTMLDialogElement.prototype.showModal,ADM_DLG={glf:1,glp:1,bjupl:1,imp2:1,stgi:1,sd:1};
 HTMLDialogElement.prototype.showModal=function(){if(ADM_DLG[this.id]&&!isAdmin()){refuse();return}return _sm.apply(this,arguments)};
 var W_IDS={imp:1,fm:1,mf:1,mf2:1,dnxf:1,stgf:1,sof:1,bjuf:1,glfi:1,glrp:1,ptfile:1,ptimp:1,ptclr:1,ap:1,ig:1,sod:1};
