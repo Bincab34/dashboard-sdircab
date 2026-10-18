@@ -604,7 +604,7 @@ $('bjq').onkeydown=function(e){if(e.key==='Enter')bjap()};
 bjr();
 var GL_MAX=10*1048576,GL_BATCH=20,GL={a:[]},GLC={q:'',k:'',y:'',o:'new'},GLQ=[],GLU={},GLL=[],GLI=0,GLA=null,GLF=null,GLP=null,GLRI=0,GLUP=false,GLM=[];
 try{var gz=JSON.parse(localStorage.getItem('binkar_gl')||'null');if(gz&&gz.a)GL=gz}catch(e){}
-function glsv(){try{localStorage.setItem('binkar_gl',JSON.stringify(GL));return true}catch(e){alert('Data album gagal disimpan (penyimpanan browser penuh atau tidak tersedia).');return false}}
+function glsv(){try{localStorage.setItem('binkar_gl',JSON.stringify(GL));window.dispatchEvent(new CustomEvent('binkar-media-change',{detail:{kind:'gallery',action:'sync'}}));return true}catch(e){alert('Data album gagal disimpan (penyimpanan browser penuh atau tidak tersedia).');return false}}
 function gldb(m,fn){return new Promise(function(ok,no){var q=indexedDB.open('binkar_gl',1);q.onupgradeneeded=function(){q.result.createObjectStore('f')};q.onsuccess=function(){var t=q.result.transaction('f',m),r=fn(t.objectStore('f'));t.oncomplete=function(){ok(r&&r.result)};t.onerror=function(){no(t.error)};t.onabort=function(){no(t.error)}};q.onerror=function(){no(q.error)}})}
 function gl0(id){return GL.a.filter(function(a){return a.id===id})[0]}
 function glid(p){return p+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
@@ -644,7 +644,7 @@ return '<div class="gla"><div class="glcv" style="font-size:24px">'+(cv?'<img da
 $('glaq').oninput=gla;$('glas').onchange=gla;
 function glpv(id){document.querySelector('nav a[data-t="glv"]').click();glvw(id)}
 function glst(id,s){var a=gl0(id);if(!a)return;if(s==='published'){if(!a.p.length){alert('Tambahkan minimal 1 foto sebelum memublikasikan.');return}if(!confirm('Publikasikan album "'+a.t+'"? Pastikan seluruh foto sudah diizinkan untuk ditampilkan.'))return;if(!a.tp)a.tp=iso(new Date());if(!a.p.some(function(p){return p.id===a.cov}))a.cov=a.p[0].id}else if(s==='archived'&&!confirm('Arsipkan album "'+a.t+'"? Album tidak akan tampil di galeri.'))return;a.s=s;a.up=glnw();glsv();gla()}
-function glrmb(a){a.p.forEach(function(p){['t','f'].forEach(function(k){if(GLU[p.id+k]){URL.revokeObjectURL(GLU[p.id+k]);delete GLU[p.id+k]}});gldb('readwrite',function(s){return s.delete(p.id)}).catch(function(){})})}
+function glrmb(a){a.p.forEach(function(p){['t','f'].forEach(function(k){if(GLU[p.id+k]){URL.revokeObjectURL(GLU[p.id+k]);delete GLU[p.id+k]}});gldb('readwrite',function(s){return s.delete(p.id)}).catch(function(){});window.dispatchEvent(new CustomEvent('binkar-media-change',{detail:{kind:'gallery',id:p.id,action:'delete'}}))})}
 function glclearall(){if(!confirm('Hapus SEMUA album dan foto Galeri dari browser ini? Tindakan ini tidak dapat dibatalkan. Metadata album akan disinkronkan ke Supabase jika koneksi cloud aktif; file foto di browser ini akan dihapus. Pastikan Anda memiliki salinan foto asli.'))return;GL.a=[];if(!glsv())return;gldb('readwrite',function(s){return s.clear()}).then(function(){noteIfAvailable('Galeri dikosongkan. Tunggu konfirmasi sinkronisasi sebelum membuat album baru.');}).catch(function(){alert('Metadata album dikosongkan, tetapi penghapusan file foto lokal tidak dapat dikonfirmasi.');});gla();glr();}
 function gldl(id){var a=gl0(id);if(!a||!confirm('Hapus album "'+a.t+'" beserta '+a.p.length+' foto? Tindakan ini tidak dapat dibatalkan.'))return;glrmb(a);GL.a=GL.a.filter(function(x){return x.id!==id});glsv();gla()}
 function glfo(id){GLF=id;var a=id?gl0(id):null;$('glfh').textContent=a?'Edit Album':'Tambah Album';$('glft').value=a?a.t:'';$('glfd').value=a?a.d||'':'';$('glftg').value=a?a.tgl||'':'';$('glfk').value=a?a.k||'':'';$('glfs').value=a?a.sat||'':'';$('glfe').textContent='';
@@ -690,7 +690,7 @@ R();
 var SO_IMG={};/* gambar tertanam permanen: isi dengan {id:'data:image/...'}; gambar unggahan di peramban diutamakan */
 var SO_LIST=[['puspomad','Puspomad'],['pomdam-a','Pomdam Tipe A dan B'],['pomdam-c','Pomdam Tipe C'],['denpom','Denpom Khusus Ibu Kota dan Tipe A, B, C'],['subdenpom','Sub Denpom Tipe A, B dan C'],['pusdikpom','Pusdikpom'],['yonpomad','Yonpomad'],['yonwalprotneg','Yonwalprotneg'],['pomkostrad','Pom Kostrad'],['kostrad','Denpom Divisi Kostrad'],['kopassus','Denpom Kopassus']],SO_CUR='puspomad',SO_MEM={};
 function so_db(){return new Promise(function(ok){try{var q=indexedDB.open('binkar_org',1);q.onupgradeneeded=function(){q.result.createObjectStore('i')};q.onerror=q.onblocked=function(){ok(null)};q.onsuccess=function(){ok(q.result)}}catch(e){ok(null)}})}
-function so_io(m,id,v){return so_db().then(function(db){return new Promise(function(ok){if(!db){if(m==='put')SO_MEM[id]=v;else if(m==='delete')delete SO_MEM[id];return ok(m==='get'?SO_MEM[id]:null)}try{var st=db.transaction('i',m==='get'?'readonly':'readwrite').objectStore('i'),r=m==='get'?st.get(id):m==='put'?st.put(v,id):st.delete(id);r.onsuccess=function(){ok(m==='get'?r.result:null)};r.onerror=function(){ok(null)}}catch(e){ok(null)}})})}
+function so_io(m,id,v){return so_db().then(function(db){return new Promise(function(ok){if(!db){if(m==='put')SO_MEM[id]=v;else if(m==='delete')delete SO_MEM[id];if(m!=='get')window.dispatchEvent(new CustomEvent('binkar-media-change',{detail:{kind:'org',id:id,action:m}}));return ok(m==='get'?SO_MEM[id]:null)}try{var st=db.transaction('i',m==='get'?'readonly':'readwrite').objectStore('i'),r=m==='get'?st.get(id):m==='put'?st.put(v,id):st.delete(id);r.onsuccess=function(){ok(m==='get'?r.result:null)};r.onerror=function(){ok(null)};if(m!=='get')r.onsuccess=function(){window.dispatchEvent(new CustomEvent('binkar-media-change',{detail:{kind:'org',id:id,action:m}}));ok(null)}}catch(e){ok(null)}})})}
 function so_show(){var id=SO_CUR,o=SO_LIST.filter(function(x){return x[0]===id})[0];$('sot').textContent=o[1];$('sol').innerHTML=SO_LIST.map(function(x,i){return '<button class="b'+(x[0]===id?' on':'')+'" data-o="'+x[0]+'">'+(i+1)+'. '+x[1]+'</button>'}).join('');
 so_io('get',id).then(function(v){if(SO_CUR!==id)return;$('sod').hidden=!v;v=v||SO_IMG[id];$('soi').innerHTML=v?'<div style="text-align:center"><img src="'+v+'" alt="Struktur organisasi '+o[1]+'" style="max-width:100%;max-height:52vh;width:auto;height:auto;cursor:zoom-in" onclick="so_zoom(this.src)"><div class="sub" style="font-size:12px;margin-top:6px">Klik atau ketuk gambar untuk memperbesar</div></div>':'<div class="sub" style="text-align:center;line-height:1.7">Gambar struktur organisasi <b>'+o[1]+'</b> belum tersedia.<br><small>Gunakan tombol “Unggah gambar”.</small></div>'})}
 function so_del(){if(confirm('Hapus gambar struktur organisasi yang diunggah?'))so_io('delete',SO_CUR).then(so_show)}
@@ -1040,18 +1040,43 @@ function pushCloudState(){if(!sb||ROLE!=='admin'||!cloudReady||applyingCloud)ret
  return sb.from('dashboard_app_state').upsert({title:'dashboard_state_v1',content:content,updated_by:u.data.user.id,updated_at:new Date().toISOString()},{onConflict:'title'}).then(function(r){if(r.error){note('Data lokal tersimpan, tetapi sinkronisasi cloud gagal. Periksa tabel dan policy Supabase.');console.error('Cloud sync failed:',r.error)}else{note('Sinkronisasi cloud berhasil. Data dashboard tersimpan di Supabase.')}})
  }).catch(function(e){console.error('Cloud sync failed:',e);note('Sinkronisasi cloud gagal. Periksa koneksi internet.')})
  },1000)}
+function mediaNote(m){note(m)}
+function mediaDataUrlToBlob(s){try{var a=s.split(','),mime=(a[0].match(/data:([^;]+)/)||[])[1]||'image/jpeg',b=atob(a[1]),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return new Blob([u],{type:mime})}catch(e){return null}}
+function mediaBlobToDataUrl(blob){return new Promise(function(ok,no){var r=new FileReader();r.onload=function(){ok(r.result)};r.onerror=no;r.readAsDataURL(blob)})}
+function mediaOrgGet(id){return so_io('get',id)}
+function mediaOrgPut(id,v){return so_io('put',id,v)}
+function mediaGalleryGet(id){return new Promise(function(ok,no){var q=indexedDB.open('binkar_gl',1);q.onupgradeneeded=function(){q.result.createObjectStore('f')};q.onerror=function(){no(q.error)};q.onsuccess=function(){var db=q.result;try{var r=db.transaction('f','readonly').objectStore('f').get(id);r.onsuccess=function(){ok(r.result)};r.onerror=function(){no(r.error)}}catch(e){no(e)}}})}
+function mediaGalleryPut(id,v){return new Promise(function(ok,no){var q=indexedDB.open('binkar_gl',1);q.onupgradeneeded=function(){q.result.createObjectStore('f')};q.onerror=function(){no(q.error)};q.onsuccess=function(){var db=q.result;try{var tx=db.transaction('f','readwrite');tx.objectStore('f').put(v,id);tx.oncomplete=ok;tx.onerror=function(){no(tx.error)}}catch(e){no(e)}}})}
+function mediaGalleryDelete(id){return new Promise(function(ok){var q=indexedDB.open('binkar_gl',1);q.onupgradeneeded=function(){q.result.createObjectStore('f')};q.onerror=q.onblocked=function(){ok()};q.onsuccess=function(){try{var tx=q.result.transaction('f','readwrite');tx.objectStore('f').delete(id);tx.oncomplete=ok;tx.onerror=ok}catch(e){ok()}}})}
+function mediaUpload(path,blob,mime){return sb.storage.from('dashboard-media').upload(path,blob,{upsert:true,contentType:mime||blob.type||'application/octet-stream',cacheControl:'3600'}).then(function(r){if(r.error)throw r.error;return true})}
+function mediaDownload(path){return sb.storage.from('dashboard-media').download(path).then(function(r){if(r.error)throw r.error;return r.data})}
+function mediaRemove(paths){if(!paths.length)return Promise.resolve();return sb.storage.from('dashboard-media').remove(paths).then(function(r){if(r.error)throw r.error})}
+var mediaBusy=false,mediaQueued=null;
+function syncCloudMedia(mode,detail){if(!sb||!ROLE||!cloudReady)return Promise.resolve();if(ROLE!=='admin'&&mode==='push')return Promise.resolve();if(mediaBusy){mediaQueued={mode:mode,detail:detail};return Promise.resolve()}mediaBusy=true;
+ var jobs=[],orgIds=(window.SO_LIST||[]).map(function(x){return x[0]}),gl=null;try{gl=JSON.parse(localStorage.getItem('binkar_gl')||'{}')}catch(e){};var photoIds=[];((gl&&gl.a)||[]).forEach(function(a){(a.p||[]).forEach(function(p){if(p.id&&photoIds.indexOf(p.id)<0)photoIds.push(p.id)})});
+ function uploadOrg(id){return mediaOrgGet(id).then(function(v){if(!v)return;var b=typeof v==='string'&&v.indexOf('data:')===0?mediaDataUrlToBlob(v):null;if(!b)return;return mediaUpload('org/'+id+'.jpg',b,'image/jpeg')})}
+ function pullOrg(id){return mediaDownload('org/'+id+'.jpg').then(function(b){return mediaBlobToDataUrl(b)}).then(function(d){return mediaOrgPut(id,d)}).catch(function(){return mediaOrgGet(id).then(function(v){if(ROLE==='admin'&&v)return uploadOrg(id)})})}
+ function uploadPhoto(id){return mediaGalleryGet(id).then(function(v){if(!v)return;var a=[];if(v.t)a.push(mediaUpload('gallery/'+id+'_t.jpg',v.t,'image/jpeg'));if(v.f)a.push(mediaUpload('gallery/'+id+'_f.jpg',v.f,'image/jpeg'));return Promise.all(a)})}
+ function pullPhoto(id){return Promise.all(['t','f'].map(function(k){return mediaDownload('gallery/'+id+'_'+k+'.jpg').then(function(b){return {k:k,b:b}}).catch(function(){return null})})).then(function(v){var obj={};v.forEach(function(x){if(x)obj[x.k]=x.b});if(Object.keys(obj).length)return mediaGalleryGet(id).then(function(old){return mediaGalleryPut(id,{t:obj.t||(old&&old.t),f:obj.f||(old&&old.f)})});if(ROLE==='admin')return uploadPhoto(id)})}
+ if(mode==='push'&&detail&&detail.kind==='org'&&detail.action==='delete')jobs.push(mediaRemove(['org/'+detail.id+'.jpg']).catch(function(e){console.warn('Storage delete org:',e)}));
+ else if(mode==='push'&&detail&&detail.kind==='gallery'&&detail.action==='delete')jobs.push(mediaRemove(['gallery/'+detail.id+'_t.jpg','gallery/'+detail.id+'_f.jpg']).catch(function(e){console.warn('Storage delete gallery:',e)}));
+ else if(mode==='push'){orgIds.forEach(function(id){jobs.push(uploadOrg(id))});photoIds.forEach(function(id){jobs.push(uploadPhoto(id))})}
+ else {orgIds.forEach(function(id){jobs.push(pullOrg(id))});photoIds.forEach(function(id){jobs.push(pullPhoto(id))})}
+ return Promise.all(jobs.map(function(j){return Promise.resolve(j).catch(function(e){console.warn('Media sync item failed:',e);return null})})).then(function(){if(jobs.length)mediaNote(mode==='pull'?'Sinkronisasi gambar Struktur Organisasi dan Galeri diperiksa.':'Perubahan media sedang/selesai disinkronkan ke Supabase Storage.');}).finally(function(){mediaBusy=false;if(mediaQueued){var z=mediaQueued;mediaQueued=null;syncCloudMedia(z.mode,z.detail)}})
+}
+window.addEventListener('binkar-media-change',function(e){if(ROLE==='admin'&&cloudReady){var d=e.detail||{};if(d.kind==='org'&&d.action==='delete')syncCloudMedia('push',{kind:'org',id:d.id,action:'delete'});else if(d.kind==='gallery'&&d.action==='delete')syncCloudMedia('push',{kind:'gallery',id:d.id,action:'delete'});else syncCloudMedia('push',d)}});
 function initCloudState(){if(!sb||!ROLE||syncing)return;syncing=true;
  sb.from('dashboard_app_state').select('title,content').eq('title','dashboard_state_v1').maybeSingle().then(function(r){
  if(r.error){note('Login berhasil, tetapi sinkronisasi cloud belum aktif. Pastikan SQL tabel dashboard_app_state dan policy sudah dijalankan.');console.error('Cloud state read failed:',r.error);return}
  var local=collectLocalState();
  if(!r.data||!r.data.content||r.data.content==='{}'){
-   if(ROLE==='admin'){cloudReady=true;pushCloudState();}
+   if(ROLE==='admin'){cloudReady=true;pushCloudState();setTimeout(function(){syncCloudMedia('push');},1800);}
    else{note('Data cloud belum diinisialisasi oleh admin. Hubungi administrator.');}
    return;
  }
  var state;try{state=JSON.parse(r.data.content)}catch(e){note('Data cloud tidak dapat dibaca. Data lokal tidak dihapus.');return}
  var changed=applyCloudState(state);cloudReady=true;
- if(changed){note('Data cloud dimuat. Memperbarui tampilan dashboard…');setTimeout(function(){location.reload()},250)}
+ syncCloudMedia('pull').finally(function(){if(changed){note('Data cloud dimuat. Memperbarui tampilan dashboard…');setTimeout(function(){location.reload()},250)}});
  }).catch(function(e){console.error('Cloud state read failed:',e);note('Tidak dapat membaca data cloud. Data lokal tidak dihapus.')}).finally(function(){syncing=false})}
 function enter(p,user){ROLE=p.role;var n=p.full_name||user.email||'Pengguna';
  A('unm').textContent=n;A('uav').textContent=initials(n);A('urole').textContent=p.role==='admin'?'Admin':'User';
